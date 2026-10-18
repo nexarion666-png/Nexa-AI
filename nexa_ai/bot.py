@@ -60,9 +60,13 @@ def _looks_like_pasteable_block(block: str) -> bool:
             return True
         if re.match(r"^[A-Z][A-Z0-9_]{2,}=.{0,}$", line):
             return True
+        if re.match(r"^https?://\S+$", line):
+            return True
+        if line.startswith(("BEGIN ", "SELECT ", "INSERT ", "UPDATE ", "DELETE ", "CREATE ", "ALTER ")):
+            return True
         if ((line.startswith(("{", "[")) and line.endswith(("}", "]")) and (":" in line or "," in line))
                 or line.startswith(("print(", "console.log(", "<div", "<html", "<!doctype", "SELECT "))
-                or re.match(r"^(?:const|let|var|def|class|import|from)\\s+", line)):
+                or re.match(r"^(?:const|let|var|def|class|import|from)\s+", line)):
             return True
     if len(lines) >= 2:
         command_prefixes = ("npm ", "npx ", "pnpm ", "yarn ", "git ", "python ",
@@ -102,9 +106,17 @@ def _response_segments(response: str):
     return segments
 
 def _implicit_segments(text: str):
-    # Detect standalone copy/paste snippets while leaving explanatory paragraphs plain.
+    """Detect standalone copy/paste material, including plain-text prompts and form values."""
     parts = re.split(r"(\n\s*\n)", text)
     result = []
+    copy_cue = re.compile(
+        r"(?:copy(?: and paste)?|paste (?:this|the following)|prompt(?: to paste)?|"
+        r"enter (?:this|the following)|run (?:this|the following)|use (?:this|the following)|"
+        r"submit (?:this|the following)|send (?:this|the following)|message to send|"
+        r"put this into|add this to|replace (?:it|this|the file) with)\s*[:：]?\s*$",
+        re.I,
+    )
+    force_next = False
     for part in parts:
         if not part:
             continue
@@ -112,10 +124,22 @@ def _implicit_segments(text: str):
             if result and result[-1][0] == "text":
                 result[-1] = ("text", result[-1][1] + part, "")
             continue
-        if _looks_like_pasteable_block(part):
-            result.append(("code", part.strip(), _guess_language(part)))
+        stripped = part.strip()
+        if force_next or _looks_like_pasteable_block(part):
+            result.append(("code", stripped, _guess_language(part)))
+            force_next = False
         else:
             result.append(("text", part, ""))
+            force_next = bool(
+                copy_cue.search(stripped)
+                or re.search(
+                    r"\b(?:prompt|copy(?: and paste)?|paste|enter|run|submit|send)\b"
+                    r".{0,100}\b(?:into|below|following|this|field|editor|terminal|chat|"
+                    r"claude|chatgpt|another ai)\b",
+                    stripped,
+                    re.I,
+                )
+            )
     return result
 
 def _guess_language(block: str) -> str:
@@ -257,9 +281,10 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response, provider, model = await answer(history, text, attachment)
         db.add_message(user_id, "user", text if not attachment else (text[:5000] + f"\n[Attachment: {getattr(msg.document, 'file_name', 'photo')}]"))
         db.add_message(user_id, "assistant", response)
-        response = f"{response}\n\n— {provider} · {model}"
-        for start_idx in range(0, len(response), MAX_TELEGRAM_MESSAGE):
-            await msg.reply_text(response[start_idx:start_idx + MAX_TELEGRAM_MESSAGE])
+        # Keep prose readable while sending copy/paste material as native Telegram
+        # PRE entities (Telegram's built-in Copy UI in supported clients).
+        await reply_formatted(msg, response)
+        await msg.reply_text(f"— {provider} · {model}")
     except ProviderError as exc:
         log.warning("All providers failed for owner %s: %s", user_id, exc)
         await msg.reply_text("⚠️ I couldn't get a response from the configured providers.\n\n" + str(exc)[:3000])
