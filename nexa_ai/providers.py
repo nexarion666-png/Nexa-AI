@@ -7,7 +7,8 @@ from . import config
 SYSTEM_PROMPT = (
     "You are Nexa AI, a helpful personal AI assistant. Be conversational and useful. "
     "Use the conversation context when answering. If an attachment is provided, analyze its content "
-    "rather than claiming you cannot see it. Be honest about uncertainty."
+    "rather than claiming you cannot see it. Be honest about uncertainty. "
+    "For Telegram replies, put source code, terminal commands, Git/deployment commands, JSON, configuration, environment-variable examples, and prompts meant to be copied into fenced code blocks with an appropriate language label. Keep ordinary explanations outside code blocks."
 )
 
 class ProviderError(Exception):

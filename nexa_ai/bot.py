@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import os
-from telegram import Update
+import re
+from telegram import Update, MessageEntity
 from telegram.constants import ChatAction
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from . import config, db
@@ -11,6 +12,149 @@ from .providers import answer, configured_providers, ProviderError
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("nexa_ai")
 MAX_TELEGRAM_MESSAGE = 3900
+CODE_FENCE_RE = re.compile(r"```([^\n`]*)\n(.*?)(?:```|$)", re.DOTALL)
+LANGUAGE_ALIASES = {
+    "js": "javascript", "ts": "typescript", "py": "python",
+    "sh": "bash", "shell": "bash", "zsh": "bash", "yml": "yaml",
+    "html": "html", "htm": "html", "jsx": "jsx", "tsx": "tsx",
+    "env": "bash", "dotenv": "bash", "txt": "",
+}
+
+def _utf16_length(value: str) -> int:
+    """Telegram entity offsets and lengths are measured in UTF-16 code units."""
+    return len(value.encode("utf-16-le")) // 2
+
+def _chunks(value: str, limit: int = MAX_TELEGRAM_MESSAGE):
+    """Split text without breaking Unicode characters, preferring line boundaries."""
+    remaining = value
+    while remaining:
+        units = 0
+        end = 0
+        last_break = 0
+        for i, char in enumerate(remaining):
+            char_units = _utf16_length(char)
+            if units + char_units > limit:
+                break
+            units += char_units
+            end = i + 1
+            if char in "\n ":
+                last_break = end
+        if end == 0:  # defensive; a single Unicode code point should fit
+            end = 1
+        if end < len(remaining) and last_break > max(0, end - 500):
+            end = last_break
+        yield remaining[:end]
+        remaining = remaining[end:]
+
+def _looks_like_pasteable_block(block: str) -> bool:
+    """Recognize common unfenced commands/config/data without wrapping normal prose."""
+    lines = [line.strip() for line in block.strip().splitlines() if line.strip()]
+    if not lines:
+        return False
+    if len(lines) == 1:
+        line = lines[0]
+        if line.startswith(("$ ", "> ", ">>> ", "curl ", "npm ", "npx ", "pnpm ",
+                            "yarn ", "git ", "python ", "python3 ", "pip ", "pip3 ",
+                            "cd ", "mkdir ", "cp ", "mv ", "cat ", "echo ", "export ",
+                            "vercel ", "gh ", "docker ", "psql ", "uv ", "node ")):
+            return True
+        if re.match(r"^[A-Z][A-Z0-9_]{2,}=.{0,}$", line):
+            return True
+        if ((line.startswith(("{", "[")) and line.endswith(("}", "]")) and (":" in line or "," in line))
+                or line.startswith(("print(", "console.log(", "<div", "<html", "<!doctype", "SELECT "))
+                or re.match(r"^(?:const|let|var|def|class|import|from)\\s+", line)):
+            return True
+    if len(lines) >= 2:
+        command_prefixes = ("npm ", "npx ", "pnpm ", "yarn ", "git ", "python ",
+                            "python3 ", "pip ", "pip3 ", "cd ", "curl ", "vercel ",
+                            "docker ", "export ", "mkdir ", "gh ")
+        if all(line.startswith(command_prefixes) for line in lines):
+            return True
+        code_signals = sum(bool(re.match(
+            r"^(?:[{}\[\],]|[A-Za-z_$][\w$.-]*\s*[:=]|"
+            r"(?:const|let|var|function|import|export|from|def|class|return|if|for|while|"
+            r"async|await|SELECT|INSERT|UPDATE|CREATE|ALTER|<!doctype|<\w+|"
+            r"\$ |# |//|-- )|[A-Z][A-Z0-9_]{2,}=)", line, re.I
+        )) for line in lines)
+        if code_signals >= max(2, len(lines) // 2):
+            return True
+        if lines[0].startswith(("{", "[")) and lines[-1].endswith(("}", "]")):
+            return True
+    return False
+
+def _response_segments(response: str):
+    """Return (kind, text, language) segments; code is sent as Telegram PRE entities."""
+    segments = []
+    cursor = 0
+    for match in CODE_FENCE_RE.finditer(response):
+        if match.start() > cursor:
+            segments.extend(_implicit_segments(response[cursor:match.start()]))
+        language = match.group(1).strip().split()[0].lower() if match.group(1).strip() else ""
+        language = LANGUAGE_ALIASES.get(language, language)
+        code = match.group(2).strip("\n")
+        if code:
+            segments.append(("code", code, language))
+        cursor = match.end()
+    if cursor < len(response):
+        segments.extend(_implicit_segments(response[cursor:]))
+    if not segments and response:
+        segments.append(("text", response, ""))
+    return segments
+
+def _implicit_segments(text: str):
+    # Detect standalone copy/paste snippets while leaving explanatory paragraphs plain.
+    parts = re.split(r"(\n\s*\n)", text)
+    result = []
+    for part in parts:
+        if not part:
+            continue
+        if part.isspace():
+            if result and result[-1][0] == "text":
+                result[-1] = ("text", result[-1][1] + part, "")
+            continue
+        if _looks_like_pasteable_block(part):
+            result.append(("code", part.strip(), _guess_language(part)))
+        else:
+            result.append(("text", part, ""))
+    return result
+
+def _guess_language(block: str) -> str:
+    value = block.strip().lower()
+    if value.startswith(("npm ", "npx ", "pnpm ", "yarn ", "git ", "python ", "pip ",
+                         "pip3 ", "cd ", "mkdir ", "curl ", "vercel ", "docker ", "export ")):
+        return "bash"
+    if value.startswith(("{", "[")) and ('":' in value or "':" in value):
+        return "json"
+    if "<!doctype" in value or re.search(r"</?[a-z][^>]*>", value):
+        return "html"
+    if re.search(r"\b(select|insert into|update\s+\w+|create table)\b", value):
+        return "sql"
+    if re.search(r"\b(const|let|var|function|console\.log)\b", value):
+        return "javascript"
+    if re.search(r"^def |^import |^from |^class ", value, re.M):
+        return "python"
+    if re.match(r"^[A-Z][A-Z0-9_]{2,}=", block.strip()):
+        return "bash"
+    return ""
+
+async def reply_formatted(message, response: str):
+    """Send assistant output as plain prose plus native Telegram copyable code blocks."""
+    for kind, value, language in _response_segments(response):
+        if kind == "text":
+            for chunk in _chunks(value):
+                if chunk:
+                    await message.reply_text(chunk)
+            continue
+        for chunk in _chunks(value):
+            if not chunk:
+                continue
+            entity = MessageEntity(
+                type=MessageEntity.PRE,
+                offset=0,
+                length=_utf16_length(chunk),
+                language=language or None,
+            )
+            await message.reply_text(chunk, entities=[entity])
 
 def is_owner(update: Update) -> bool:
     return bool(update.effective_user and config.TELEGRAM_OWNER_ID
