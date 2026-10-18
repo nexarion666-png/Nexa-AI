@@ -12,6 +12,8 @@ def _int_env(name: str, default: int) -> int:
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_OWNER_ID = os.getenv("TELEGRAM_OWNER_ID", "").strip()
 DATABASE_PATH = os.getenv("DATABASE_PATH", "nexa_ai.sqlite3")
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 MAX_ATTACHMENT_MB = max(1, _int_env("MAX_ATTACHMENT_MB", 15))
 MAX_ZIP_TEXT_CHARS = max(1000, _int_env("MAX_ZIP_TEXT_CHARS", 60000))
 MAX_HISTORY_MESSAGES = max(4, _int_env("MAX_HISTORY_MESSAGES", 20))

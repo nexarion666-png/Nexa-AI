@@ -1,6 +1,6 @@
 # Nexa AI — Personal Telegram Assistant
 
-A private Telegram AI bot with ordered provider fallback, conversation history, saved memories, and attachment analysis.
+A private Telegram AI bot with ordered provider fallback, conversation history, saved memories, and attachment analysis. Supports local polling and Vercel webhook deployment.
 
 ## Provider priority
 
@@ -71,11 +71,27 @@ python -m nexa_ai.bot
 
 On Android, running in Termux is possible but the process may stop when Android kills Termux. For always-on use, deploy as a background worker.
 
-## 5. Deploy as a worker
+## 5. Deploy on Vercel (webhook mode)
 
-This bot uses Telegram long polling, so deploy it as a **background worker**, not a static website or ordinary request/response server.
+The Vercel version uses Telegram webhooks rather than long polling. Copy the included `api/webhook.py` and `vercel.json` to the repository root. Vercel detects Python functions under `api/`.
 
-Options include a container host or a Python background worker host. For Render, the included `render.yaml` describes a Docker worker. Create a worker from the repository and add the environment variables in the hosting dashboard. Check the host's current plan and pricing; continuous workers may not be free.
+**Persistent database required:** create a PostgreSQL database (for example, Neon) and set `DATABASE_URL` in Vercel Environment Variables. Do not use the local SQLite file for production on Vercel; serverless filesystems are ephemeral and not shared reliably between invocations. The bot still uses SQLite automatically for local development when `DATABASE_URL` is unset.
+
+Set these Vercel environment variables:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_OWNER_ID`
+- `TELEGRAM_WEBHOOK_SECRET` (random secret, matching Telegram's webhook secret)
+- `DATABASE_URL`
+- Any provider API keys you use
+
+Deploy, then set Telegram's webhook URL to `https://YOUR-VERCEL-DOMAIN/api/webhook`, with Telegram `secret_token` matching `TELEGRAM_WEBHOOK_SECRET`. Do this privately; never publish a token-containing Bot API URL. Stop any old polling process before switching to webhooks.
+
+**Serverless limits:** AI responses and large attachments can take longer than a function's execution limit. The supplied setup is a starter deployment; check Vercel's current Python runtime, duration, and plan limits. For stronger reliability, a queued background worker may be needed.
+
+## 6. Local polling deployment
+
+For local development or a traditional background-worker host, run `python -m nexa_ai.bot`. The included `render.yaml` describes a Docker worker. Check the hosting provider's current plan and pricing; continuous workers may not be free.
 
 ## Attachment notes and limits
 
@@ -92,7 +108,7 @@ Options include a container host or a Python background worker host. For Render,
 ## Privacy and security
 
 - Only the Telegram account ID configured in `TELEGRAM_OWNER_ID` is authorized.
-- Conversation history and memories are stored in SQLite on the host filesystem. Back up the database if you need persistence across redeployments; use persistent disk/storage on your host.
+- On Vercel, conversation history and memories are stored in PostgreSQL through `DATABASE_URL`. Locally, they are stored in SQLite. Do not rely on Vercel local files for persistent data.
 - Use private repository settings if pushing this code to GitHub.
 - Do not commit `.env`, database files, or API keys.
 - Uploaded content is sent to the selected AI provider when needed for analysis. Review each provider's privacy and retention terms.
