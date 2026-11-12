@@ -199,7 +199,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Welcome to Nexa AI!\n\n"
         "Chat naturally, ask follow-up questions, or attach an image, PDF, document, spreadsheet, code file, or ZIP project.\n\n"
         "Provider priority: Clean APIs → Gemini → Groq → OpenRouter.\n\n"
-        "Commands:\n/new — new conversation\n/memory — show saved memories\n/remember <fact> — save a memory\n/forget — clear saved memories\n/clear — clear conversation history\n/models — show configured providers\n/help — show help"
+        "Commands:\n/new — new conversation\n/memory — show saved memories\n/remember <fact> — save a memory\n/forget — clear saved memories\n/clear — clear conversation history\n/models — show configured providers\n/search <query> — live web search\n/github — GitHub repository tools\n/help — show help"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
