@@ -27,3 +27,14 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()
+
+# Brave Search API
+BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "").strip()
+
+# GitHub: use a fine-grained token restricted to selected repositories.
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+GITHUB_ALLOWED_REPOS = {
+    item.strip().lower()
+    for item in os.getenv("GITHUB_ALLOWED_REPOS", "").split(",")
+    if item.strip()
+}
