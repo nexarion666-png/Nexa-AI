@@ -260,7 +260,7 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_chat_action(chat_id=msg.chat_id, action=ChatAction.TYPING)
         results = await search_web(query, count=6)
         if not results:
-            await msg.reply_text("Brave Search did not return any results.")
+            await msg.reply_text("Tavily Search did not return any results.")
             return
         prompt = (
             "Answer using the live search results below. Include clickable source URLs. "
@@ -271,7 +271,7 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.add_message(user_id, "user", f"/search {query}")
         db.add_message(user_id, "assistant", response)
         await reply_formatted(msg, response)
-        await msg.reply_text(f"— {provider} · {model} · Brave Search")
+        await msg.reply_text(f"— {provider} · {model} · Tavily Search")
     except (WebSearchError, ProviderError) as exc:
         await msg.reply_text(f"⚠️ {str(exc)[:1200]}")
     except Exception as exc:
@@ -344,7 +344,7 @@ async def github_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(f"⚠️ GitHub operation failed: {str(exc)[:500]}")
 
 def _needs_live_search(user_text: str) -> bool:
-    if not config.BRAVE_SEARCH_API_KEY:
+    if not config.TAVILY_API_KEY:
         return False
     value = user_text.lower()
     cues = ("search the web", "search online", "look this up", "look it up",
@@ -394,7 +394,7 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if live_results:
                     prompt = text + "\n\n" + format_search_context(text, live_results)
             except WebSearchError as exc:
-                log.warning("Automatic Brave search unavailable: %s", exc)
+                log.warning("Automatic Tavily search unavailable: %s", exc)
         response, provider, model = await answer(history, prompt, attachment)
         db.add_message(user_id, "user", text if not attachment else (text[:5000] + f"\n[Attachment: {getattr(msg.document, 'file_name', 'photo')}]"))
         db.add_message(user_id, "assistant", response)
