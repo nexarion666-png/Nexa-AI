@@ -88,12 +88,18 @@ async def write_file(repo: str, path: str, content: str, message: str, branch: s
     if not message.strip():
         raise GitHubError("Provide a commit message.")
     params = {"ref": branch} if branch else {}
-    existing = await _request("GET", f"/repos/{repo}/contents/{safe_path}", params=params)
+    try:
+        existing = await _request("GET", f"/repos/{repo}/contents/{safe_path}", params=params)
+    except GitHubError as exc:
+        if "HTTP 404" not in str(exc):
+            raise
+        existing = {}
     body = {
         "message": message[:200],
         "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
-        "sha": existing.get("sha"),
     }
+    if existing.get("sha"):
+        body["sha"] = existing["sha"]
     if branch:
         body["branch"] = branch
     result = await _request("PUT", f"/repos/{repo}/contents/{safe_path}", json=body)
