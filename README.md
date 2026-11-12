@@ -22,6 +22,8 @@ Unconfigured providers are skipped. The fallback loop catches provider/request e
 - DOCX and XLSX text/table extraction
 - ZIP inspection in memory (no archive extraction to disk)
 - Code/text file analysis
+- Live web search through the Brave Search API (`/search` plus automatic lookup for freshness-sensitive prompts)
+- GitHub repository listing, code search, file reading and owner-authorized file commits (`/github`)
 - `/new`, `/clear`, `/remember`, `/memory`, `/forget`, `/models`, `/help`
 - Environment-based secret configuration
 - Dockerfile and optional Render background-worker blueprint
@@ -43,6 +45,8 @@ Copy `.env.example` to `.env` and fill in:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_OWNER_ID`
 - At least one provider key
+- Optional: `BRAVE_SEARCH_API_KEY` for live web search
+- Optional: `GITHUB_TOKEN` and `GITHUB_ALLOWED_REPOS` for GitHub integration
 - Recommended: all four provider keys
 
 Provider keys are optional individually; missing providers are skipped. Never upload `.env` to GitHub.
@@ -102,7 +106,7 @@ For local development or a traditional background-worker host, run `python -m ne
 - DOCX and XLSX are extracted locally.
 - ZIP files are inspected in memory; paths are checked and files are not extracted to disk. Only recognized text/code files are included, with size and total-text caps.
 - Legacy `.doc`, `.ppt`, and `.pptx` are not fully parsed by this starter version. Convert to PDF or DOCX where needed.
-- Audio/video analysis and live web search are not implemented in this first build.
+- Audio/video analysis is not implemented in this build.
 - ZIP output is context-limited; large projects may need targeted follow-up files.
 
 ## Privacy and security
@@ -112,7 +116,10 @@ For local development or a traditional background-worker host, run `python -m ne
 - Use private repository settings if pushing this code to GitHub.
 - Do not commit `.env`, database files, or API keys.
 - Uploaded content is sent to the selected AI provider when needed for analysis. Review each provider's privacy and retention terms.
-- The bot can analyze source code but does not execute code or automatically modify projects.
+- GitHub access requires a fine-grained personal access token with only the required repository permissions. Restrict it to selected repositories and list the same repositories in `GITHUB_ALLOWED_REPOS`. For reading/searching, grant repository metadata and contents read access; for file commits, grant contents read/write. The bot does not need account administration, organization administration, Actions secrets, or workflow permissions for the implemented commands.
+- `/github write` creates or updates a text file and commits directly to the repository's default branch unless the API is later extended with a branch option. Review content carefully before using it. The bot does not delete files, repositories, branches, or secrets.
+- Brave search snippets and GitHub files are treated as untrusted external content; the AI is instructed not to follow instructions embedded in them.
+- The bot does not execute source code.
 
 ## Troubleshooting
 
@@ -122,3 +129,30 @@ For local development or a traditional background-worker host, run `python -m ne
 - `No AI provider is configured`: add at least one API key.
 - `Clean APIs returned no models`: set `CLEANAPI_MODEL` explicitly after checking the model list in your Clean APIs account.
 - Bot replies that owner access is restricted: check `TELEGRAM_OWNER_ID` is your numeric Telegram user ID.
+
+
+## Live web search (Brave)
+
+Create a Brave Search API subscription and set \`BRAVE_SEARCH_API_KEY\` in the deployment environment. No search key is needed to run the bot without live search.
+
+- Use \`/search your query\` to explicitly search and ask the configured AI provider to synthesize the results.
+- Freshness-sensitive messages containing terms such as "latest", "today", "currently", or "search online" trigger an automatic lookup when the Brave key is configured.
+- Responses are instructed to cite the returned source URLs. Brave result snippets are treated as untrusted input.
+- The integration requests up to six results and applies a request timeout.
+
+## GitHub integration
+
+Configure a **fine-grained personal access token** in \`GITHUB_TOKEN\`. Restrict the token to only the repositories Nexa AI needs, and set \`GITHUB_ALLOWED_REPOS\` to a comma-separated allowlist of \`owner/repository\` names. Do not use a classic account-wide token.
+
+For the current commands, grant:
+- Metadata: read-only
+- Contents: read-only for repository listing/file reading/code search
+- Contents: read and write only if you want \`/github write\` to create/update files
+
+Commands (owner-only Telegram bot):
+- \`/github repos\`
+- \`/github read owner/repo path/to/file [branch]\`
+- \`/github search owner/repo search terms\`
+- \`/github write owner/repo path/to/file | commit message | complete file content\`
+
+File writes commit directly to the repository's default branch. There is no file deletion, secret access, repository administration, or workflow management in this initial integration. Keep the token in Vercel/Render environment variables or a local untracked \`.env\`; never commit it.
