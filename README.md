@@ -22,7 +22,7 @@ Unconfigured providers are skipped. The fallback loop catches provider/request e
 - DOCX and XLSX text/table extraction
 - ZIP inspection in memory (no archive extraction to disk)
 - Code/text file analysis
-- Live web search through the Brave Search API (`/search` plus automatic lookup for freshness-sensitive prompts)
+- Live web search through the Tavily Search API (`/search` plus automatic lookup for freshness-sensitive prompts)
 - GitHub repository listing, code search, file reading and owner-authorized file commits (`/github`)
 - `/new`, `/clear`, `/remember`, `/memory`, `/forget`, `/models`, `/help`
 - Environment-based secret configuration
@@ -45,7 +45,7 @@ Copy `.env.example` to `.env` and fill in:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_OWNER_ID`
 - At least one provider key
-- Optional: `BRAVE_SEARCH_API_KEY` for live web search
+- Optional: `TAVILY_API_KEY` for live web search
 - Optional: `GITHUB_TOKEN` and `GITHUB_ALLOWED_REPOS` for GitHub integration
 - Recommended: all four provider keys
 
@@ -88,7 +88,7 @@ Set these Vercel environment variables:
 - `TELEGRAM_WEBHOOK_SECRET` (random secret, matching Telegram's webhook secret)
 - `DATABASE_URL`
 - Any provider API keys you use
-- `BRAVE_SEARCH_API_KEY` (optional, for Brave live search)
+- `TAVILY_API_KEY` (optional, for Tavily live search)
 - `GITHUB_TOKEN` and `GITHUB_ALLOWED_REPOS` (optional, for GitHub tools)
 
 Deploy, then set Telegram's webhook URL to `https://YOUR-VERCEL-DOMAIN/api/webhook`, with Telegram `secret_token` matching `TELEGRAM_WEBHOOK_SECRET`. Do this privately; never publish a token-containing Bot API URL. Stop any old polling process before switching to webhooks.
@@ -120,7 +120,7 @@ For local development or a traditional background-worker host, run `python -m ne
 - Uploaded content is sent to the selected AI provider when needed for analysis. Review each provider's privacy and retention terms.
 - GitHub access requires a fine-grained personal access token with only the required repository permissions. Restrict it to selected repositories and list the same repositories in `GITHUB_ALLOWED_REPOS`. For reading/searching, grant repository metadata and contents read access; for file commits, grant contents read/write. The bot does not need account administration, organization administration, Actions secrets, or workflow permissions for the implemented commands.
 - `/github write` creates or updates a text file and commits directly to the repository's default branch unless the API is later extended with a branch option. Review content carefully before using it. The bot does not delete files, repositories, branches, or secrets.
-- Brave search snippets and GitHub files are treated as untrusted external content; the AI is instructed not to follow instructions embedded in them.
+- Tavily search snippets and GitHub files are treated as untrusted external content; the AI is instructed not to follow instructions embedded in them.
 - The bot does not execute source code.
 
 ## Troubleshooting
@@ -135,7 +135,7 @@ For local development or a traditional background-worker host, run `python -m ne
 
 ## Live web search (Brave)
 
-Create a Brave Search API subscription and set \`BRAVE_SEARCH_API_KEY\` in the deployment environment. No search key is needed to run the bot without live search.
+Create a Tavily Search API subscription and set \`TAVILY_API_KEY\` in the deployment environment. No search key is needed to run the bot without live search.
 
 - Use \`/search your query\` to explicitly search and ask the configured AI provider to synthesize the results.
 - Freshness-sensitive messages containing terms such as "latest", "today", "currently", or "search online" trigger an automatic lookup when the Brave key is configured.
