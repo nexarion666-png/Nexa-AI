@@ -10,7 +10,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from nexa_ai import config, db
-from nexa_ai.bot import start, help_command, clear, remember, memory, forget, models, process_message
+from nexa_ai.bot import start, help_command, clear, remember, memory, forget, models, search_command, github_command, process_message
 
 log = logging.getLogger("nexa_ai.vercel")
 
@@ -25,6 +25,8 @@ def _build_application():
     app.add_handler(CommandHandler("memory", memory))
     app.add_handler(CommandHandler("forget", forget))
     app.add_handler(CommandHandler("models", models))
+    app.add_handler(CommandHandler("search", search_command))
+    app.add_handler(CommandHandler("github", github_command))
     app.add_handler(MessageHandler((filters.TEXT & ~filters.COMMAND) | filters.PHOTO | filters.Document.ALL, process_message))
     return app
 
