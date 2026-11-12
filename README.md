@@ -88,6 +88,8 @@ Set these Vercel environment variables:
 - `TELEGRAM_WEBHOOK_SECRET` (random secret, matching Telegram's webhook secret)
 - `DATABASE_URL`
 - Any provider API keys you use
+- `BRAVE_SEARCH_API_KEY` (optional, for Brave live search)
+- `GITHUB_TOKEN` and `GITHUB_ALLOWED_REPOS` (optional, for GitHub tools)
 
 Deploy, then set Telegram's webhook URL to `https://YOUR-VERCEL-DOMAIN/api/webhook`, with Telegram `secret_token` matching `TELEGRAM_WEBHOOK_SECRET`. Do this privately; never publish a token-containing Bot API URL. Stop any old polling process before switching to webhooks.
 
